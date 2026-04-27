@@ -2,14 +2,15 @@ from flask import Flask, render_template, jsonify
 import imaplib
 import email
 import re
+import os  # İnternet sunucusu için gerekli
 
 app = Flask(__name__)
 
 # --- AYARLAR ---
 IMAP_SERVER = "imap.gmail.com"
 EMAIL_USER = "twanayou@gmail.com" 
-EMAIL_PASS = "nqjpzkmaleglhcwt" # Boşlukları silmeden buraya yapıştır
-SENDER_FILTER = "info@account.netflix.com" # ÖRNEK: Hangi adresten mail geliyorsa onu yaz (Örn: noreply@mail.instagram.com)
+EMAIL_PASS = "nqjpzkmaleglhcwt" 
+SENDER_FILTER = "info@account.netflix.com"
 
 def mail_den_kod_cek():
     try:
@@ -17,11 +18,13 @@ def mail_den_kod_cek():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
 
+        # Filtreleme: Gönderene göre ara
         status, messages = mail.search(None, f'FROM "{SENDER_FILTER}"')
         
         if not messages[0]:
             return "Mail bulunamadı."
 
+        # En son gelen maili al
         last_msg_id = messages[0].split()[-1]
         status, data = mail.fetch(last_msg_id, '(RFC822)')
         msg = email.message_from_bytes(data[0][1])
@@ -34,6 +37,7 @@ def mail_den_kod_cek():
         else:
             body = msg.get_payload(decode=True).decode()
 
+        # 4 ile 6 haneli sayıları bul (Doğrulama kodları genelde böyledir)
         code_match = re.search(r'\b\d{4,6}\b', body)
         mail.logout()
         
@@ -54,5 +58,9 @@ def get_code():
     kod = mail_den_kod_cek()
     return jsonify({"code": kod})
 
+# --- İNTERNET SUNUCUSU (RENDER) AYARI ---
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Render'ın verdiği portu otomatik yakalar, bulamazsa 5000 kullanır.
+    port = int(os.environ.get('PORT', 5000))
+    # host='0.0.0.0' dış dünyadan erişim için şarttır.
+    app.run(host='0.0.0.0', port=port)
